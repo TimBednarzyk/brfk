@@ -91,7 +91,7 @@ impl Program
     self.process_instruction(instruction);
 
     self.ins_ptr += 1;
-    self.is_done()
+    !self.is_done()
   }
 
   fn process_instruction(&mut self, instruction: Instruction)

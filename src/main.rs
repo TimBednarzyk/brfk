@@ -36,17 +36,25 @@ fn main()
 //               bp    BrainPlus mode"))
 //    .arg(Arg::with_name("ext")
 //         .short("e").long("extensions")
-//         .help("Enables brfk specific extensions, such as ` (breakpoint)"))
+//         .help("Enables brfk specific extensions"))
     .setting(AppSettings::ColoredHelp)
     .get_matches();
 
   let file = matches.value_of("file").unwrap();
-  let extended_mode = matches.value_of("mode").unwrap_or("") == "x1";
+  let mode = match matches.value_of("mode").unwrap_or("b")
+  {
+    "b"  => instructions::ParseMode::Basic,
+    "x1" => instructions::ParseMode::Extended1,
+    "x2" => instructions::ParseMode::Extended2,
+    "x3" => instructions::ParseMode::Extended3,
+    "bp" => instructions::ParseMode::BrainPlus,
+    err  => panic!("Invalid mode: {}", err)
+  };
   let enable_extensions = matches.is_present("ext");
   let mut program = interpreter::Program::new(
                       instructions::parse_code(
                         read_file(std::path::Path::new(file)),
-                        extended_mode, enable_extensions).unwrap());
+                        mode, enable_extensions).unwrap());
 
   program.run();
 }

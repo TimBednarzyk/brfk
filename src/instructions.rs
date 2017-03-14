@@ -40,7 +40,7 @@ pub enum Instruction
   Input,
   JmpFwd(usize),
   JmpBk(usize),
-  // Extended:
+  // Extended1:
   Stop,
   Store,
   Retr,
@@ -67,7 +67,7 @@ impl std::fmt::Display for Instruction
              Instruction::Input     => ",",
              Instruction::JmpFwd(_) => "[",
              Instruction::JmpBk(_)  => "]",
-             // Extended:
+             // Extended1:
              Instruction::Stop      => "@",
              Instruction::Store     => "$",
              Instruction::Retr      => "!",
@@ -82,19 +82,29 @@ impl std::fmt::Display for Instruction
   }
 }
 
+/// The mode the parser should parse Brainfuck code in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ParseMode
+{
+  Basic,
+  Extended1,
+  Extended2,
+  Extended3,
+  BrainPlus,
+}
+
 /// Parses Brainfuck source code into something the interpreter can understand.
 /// Comments in the code are ignored.
 ///
 /// # Args:
-/// 1. `src` - The source code to parse
-/// 2. `enable_ext` - If true, then parse in extended Brainfuck mode, Type 1
-///                   See https://esolangs.org/wiki/Extended_Brainfuck
+/// 1. `src` - The source code to parse.
+/// 2. `mode` - The mode to parse code in.
 /// 3. `brfk_ext` - If true, enable brfk only extensions to Brainfuck.
 ///
 /// Returns a Result containing the parsed instructions if the code was valid,
 /// or a result containing a &'static str error message describing what was
 /// wrong.
-pub fn parse_code(src: String, enable_ext: bool, brfk_ext: bool) ->
+pub fn parse_code(src: String, mode: ParseMode, brfk_ext: bool) ->
   Result<Vec<Instruction>, &'static str>
 {
   let mut instructions = Vec::new();
@@ -103,7 +113,7 @@ pub fn parse_code(src: String, enable_ext: bool, brfk_ext: bool) ->
 
   for c in src.chars()
   {
-    match (c, enable_ext, brfk_ext)
+    match (c, mode as u8, brfk_ext)
     {
       ('>', _, _) => instructions.push(Instruction::IncPtr),
       ('<', _, _) => instructions.push(Instruction::DecPtr),
@@ -127,17 +137,17 @@ pub fn parse_code(src: String, enable_ext: bool, brfk_ext: bool) ->
         let index = jmp_stack.pop().unwrap();
         *instructions.index_mut(index) = Instruction::JmpFwd(instructions.len());
         instructions.push(Instruction::JmpBk(index));
-      }
-      // Extended:
-      ('@', true, _) => instructions.push(Instruction::Stop),
-      ('$', true, _) => instructions.push(Instruction::Store),
-      ('!', true, _) => instructions.push(Instruction::Retr),
-      ('}', true, _) => instructions.push(Instruction::Rshift),
-      ('{', true, _) => instructions.push(Instruction::Lshift),
-      ('~', true, _) => instructions.push(Instruction::Not),
-      ('^', true, _) => instructions.push(Instruction::Xor),
-      ('&', true, _) => instructions.push(Instruction::And),
-      ('|', true, _) => instructions.push(Instruction::Or),
+      },
+      // Extended1:
+      ('@', 1 ... 4, _) => instructions.push(Instruction::Stop),
+      ('$', 1 ... 4, _) => instructions.push(Instruction::Store),
+      ('!', 1 ... 4, _) => instructions.push(Instruction::Retr),
+      ('}', 1 ... 4, _) => instructions.push(Instruction::Rshift),
+      ('{', 1 ... 4, _) => instructions.push(Instruction::Lshift),
+      ('~', 1 ... 4, _) => instructions.push(Instruction::Not),
+      ('^', 1 ... 4, _) => instructions.push(Instruction::Xor),
+      ('&', 1 ... 4, _) => instructions.push(Instruction::And),
+      ('|', 1 ... 4, _) => instructions.push(Instruction::Or),
       // brfk extensions
       _ => (),
     }
