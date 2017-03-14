@@ -1,0 +1,12 @@
+[package]
+name = "brfk"
+version = "0.1.0"
+authors = ["Tim Bednarzyk <timbednarzyk@gmail.com>"]
+
+[dependencies]
+clap = "2.21.1"
+
+[dependencies.cursive]
+version = "0.4"
+default-features = false
+features = ['pancurses-backend']
