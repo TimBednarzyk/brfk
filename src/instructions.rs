@@ -28,8 +28,7 @@ use ::std::ops::IndexMut;
 ///             saving the result in the value at the pointer
 ///
 /// # BRFK Extensions:
-/// 16. `BkPt` - Represents a breakpoint that will cause
-///              `Program::run_until_bkpt()` to stop execution
+/// None as of yet
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Instruction
 {
