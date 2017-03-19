@@ -117,7 +117,7 @@ impl Program
       Instruction::Input =>
       {
         let mut byte = [0];
-        std::io::stdin().read_exact(&mut byte).unwrap();
+        std::io::stdin().read_exact(&mut byte).unwrap_or(());
         self.data[self.data_ptr] = byte[0];
       },
       Instruction::JmpFwd(i) =>
