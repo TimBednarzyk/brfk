@@ -1,61 +1,66 @@
 use ::std;
 use std::io::Write;
 use std::io::Read;
+use std::ops::*;
+use ::cell::*;
+use ::Language;
+use ::instruction::*;
 
-use ::instructions::Instruction;
-
-/// Represents a Brainfuck program.
-///
-/// A brainfuck program is given 30000 unsigned bytes of data to work with, and
-/// has a single pointer to represent which byte is currently being accessed.
-/// There is also a storage byte that is only used with the extended instruction
-/// set.
+/// A Brainfuck program
 pub struct Program
 {
-  instructions: Vec<Instruction>,
-  data: [u8; 30000],
-  storage: u8,
+  data: Vec<Cell>,
   ins_ptr: usize,
   data_ptr: usize,
+  storage_ptr: usize,
+  ins_end: usize, // Used only for Basic/SelfModifying
+  language: Language,
+  done: bool,
 }
 
 #[allow(dead_code)]
 impl Program
 {
   /// Makes a Program from a set of instructions.
-  pub fn new(instructions: Vec<Instruction>) -> Program
+  pub fn new(source: &str, language: Language) -> Program
   {
-    Program { instructions: instructions, ins_ptr: 0,
-              data: [0; 30000], data_ptr: 0, storage: 0 }
+    let mut prog =
+      Program { data: Cell::from_str(source, language <= Language::Extended1),
+              ins_ptr: 1, data_ptr: 0, storage_ptr: 0, ins_end: 0,
+              language: language, done: false };
+
+    prog.ins_end = prog.data.len();
+    prog.data_ptr = prog.data.len();
+    prog.data.push(Cell::from_char('\0', false));
   }
 
   /// Returns whether the program has completed execution.
   pub fn is_done(&self) -> bool
   {
-    self.ins_ptr == self.instructions.len()
+    done
   }
 
   /// Returns the instruction that will be run next, if there is one.
   pub fn get_next_ins(&self) -> Option<Instruction>
   {
-    if self.ins_ptr == self.instructions.len()
+    if done
     {
       Option::None
     }
     else
     {
-      Option::Some(self.instructions[self.ins_ptr])
+      Instruction::get_instruction(self.data[self.ins_ptr], self.language);
     }
   }
 
   /// Returns the current value in storage.
   pub fn get_stg(&self) -> u8
   {
-    self.storage
+    self.data[self.storage_ptr].get_value()
   }
 
   /// Returns the current pointer value.
-  pub fn get_ptr(&self) -> usize
+  pub fn get_data_ptr(&self) -> usize
   {
     self.data_ptr
   }
@@ -63,7 +68,7 @@ impl Program
   /// Returns the current value at the current pointer.
   pub fn get_val(&self) -> u8
   {
-    self.data[self.data_ptr]
+    self.data[self.data_ptr].get_value()
   }
 
   /// Returns a reference to the data for the program
@@ -82,16 +87,25 @@ impl Program
   /// Returns false if the program has finished.
   pub fn step(&mut self) -> bool
   {
-    if self.is_done()
+    if self.done
     {
       return false;
     }
 
-    let instruction = self.instructions[self.ins_ptr];
-    self.process_instruction(instruction);
+    if let ins = Instruction::get_instruction(self.data[self.ins_ptr],
+                                              self.language)
+    {
+      self.process_instruction(instruction);
+    }
 
     self.ins_ptr += 1;
-    !self.is_done()
+
+    if self.language <= Language::SelfModifying && self.ins_ptr == self.ins_end
+    {
+      self.done = true;
+    }
+
+    !self.done
   }
 
   fn process_instruction(&mut self, instruction: Instruction)
@@ -99,41 +113,58 @@ impl Program
     match instruction
     {
       Instruction::IncPtr =>
-        self.data_ptr = if self.data_ptr == 29999 { 0 }
+        self.data_ptr = if self.data_ptr == self.data.len() { 0 }
                         else { self.data_ptr + 1 },
       Instruction::DecPtr =>
-        self.data_ptr = if self.data_ptr == 0 { 29999 }
-                        else { self.data_ptr - 1 }
-        ,
+        self.data_ptr = if self.data_ptr == 0 { self.data.len() - 1 }
+                        else { self.data_ptr - 1 },
+
       Instruction::IncVal =>
-       self.data[self.data_ptr] = self.data[self.data_ptr].overflowing_add(1).0,
+        self.data[self.data_ptr].increment(),
       Instruction::DecVal =>
-       self.data[self.data_ptr] = self.data[self.data_ptr].overflowing_sub(1).0,
+        self.data[self.data_ptr].decrement(),
+
       Instruction::Output =>
       {
-        print!("{}", self.data[self.data_ptr] as char);
+        print!("{}", self.data[self.data_ptr].get_value() as char);
         std::io::stdout().flush().unwrap();
       },
       Instruction::Input =>
       {
         let mut byte = [0];
         std::io::stdin().read_exact(&mut byte).unwrap_or(());
-        self.data[self.data_ptr] = byte[0];
+        self.data[self.data_ptr].set_from_char(byte[0] as char);
       },
-      Instruction::JmpFwd(i) =>
-        if self.data[self.data_ptr] == 0 { self.ins_ptr = i },
-      Instruction::JmpBk(i) =>
-        if self.data[self.data_ptr] != 0 { self.ins_ptr = i },
+
+      Instruction::JmpFwd =>
+        if self.data[self.data_ptr] != 0
+        {
+          let mut level = 1u32;
+          while level != 0
+          {
+            self.data_ptr -= 1;
+            match self.data[self.data_ptr].get_instruction()
+            {
+              Option::Some(Instruction::JmpBkd) => level += 1,
+              Option::Some(Instruction::JmpFwd) => level -= 1,
+              _ => (),
+            }
+          }
+        }
+      Instruction::JmpBkd =>
       // Extended:
-      Instruction::Stop => self.ins_ptr = self.instructions.len() - 1,
-      Instruction::Store => self.storage = self.data[self.data_ptr],
-      Instruction::Retr => self.data[self.data_ptr] = self.storage,
-      Instruction::Rshift => self.data[self.data_ptr] >>= 1,
-      Instruction::Lshift => self.data[self.data_ptr] <<= 1,
-      Instruction::Not => self.data[self.data_ptr] = !self.data[self.data_ptr],
-      Instruction::Xor => self.data[self.data_ptr] ^= self.storage,
-      Instruction::And => self.data[self.data_ptr] &= self.storage,
-      Instruction::Or => self.data[self.data_ptr] |= self.storage,
+      Instruction::Stop => self.done = true,
+
+      Instruction::Store => self.storage.set(self.data[self.data_ptr]),
+      Instruction::Retr => self.data[self.data_ptr].set(self.storage),
+
+      Instruction::Rshift => self.data[self.data_ptr].rshift(),
+      Instruction::Lshift => self.data[self.data_ptr].lshift(),
+
+      Instruction::Not => self.data[self.data_ptr].not(),
+      Instruction::Xor => self.data[self.data_ptr].xor_to_(self.storage),
+      Instruction::And => self.data[self.data_ptr].and_to_(self.storage),
+      Instruction::Or => self.data[self.data_ptr].or_to_self(self.storage),
       // brfk extensions:
     }
   }

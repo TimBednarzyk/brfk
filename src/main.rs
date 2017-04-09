@@ -1,16 +1,18 @@
 #[macro_use]
+#[cfg(feature="bin")]
 extern crate clap;
-
+#[cfg(feature="bin")]
 extern crate cursive;
 
-mod instructions;
-mod interpreter;
+#[cfg(feature="bin")]
+extern crate brfk;
 
 
-use clap::*;
-
+#[cfg(feature="bin")]
 fn main()
 {
+  use clap::*;
+
   let matches = App::new("brfk")
     .version(crate_version!())
     .author(crate_authors!())
@@ -40,6 +42,7 @@ fn main()
     .setting(AppSettings::ColoredHelp)
     .get_matches();
 
+  /*
   let file = matches.value_of("file").unwrap();
   let mode = match matches.value_of("mode").unwrap_or("b")
   {
@@ -57,8 +60,10 @@ fn main()
                         mode, enable_extensions).unwrap());
 
   program.run();
+  */
 }
 
+#[cfg(feature="bin")]
 fn read_file(file_path: &std::path::Path) -> String
 {
   use std::io::Read;
@@ -69,4 +74,10 @@ fn read_file(file_path: &std::path::Path) -> String
   let mut file_contents = String::new();
   file.read_to_string(&mut file_contents).expect("Could not read file");
   file_contents
+}
+
+#[cfg(not(feature="bin"))]
+fn main()
+{
+  panic!("Did not compile with feature \"bin\"!");
 }
